@@ -1,0 +1,895 @@
+---
+title: "Relatório consumo de cerveja"
+author: "Autora: Ana Carla Menezes"
+date: "27/04/2021"
+output: html_document
+---
+
+
+```{r, include=FALSE}
+library(tidyverse)
+require(dplyr)
+require(readxl)
+library(rstatix)
+require(stringr)
+require(kableExtra)
+library(readr)
+library(GGally)
+library(ggplot2)
+library(ggpubr)
+library(RVAideMemoire)
+library(car)
+library(olsrr)
+```
+
+```{r}
+#Bibliotecas carregadas previamente
+# library(tidyverse)
+# require(dplyr)
+# require(readxl)
+# library(rstatix)
+# require(stringr)
+# require(kableExtra)
+# library(readr)
+# library(GGally)
+# library(ggplot2)
+# library(ggpubr)
+# library(RVAideMemoire)
+# library(car)
+# library(olsrr)
+```
+
+## Importação dos dados
+```{r}
+#Leitura do banco de dados em csv2
+consumo_cerveja <- read.csv2("C:/Users/famil/Documents/Ana Carla UFPE/PeriodosUFPE/Estagio/consumo_cerveja.csv", encoding = "UTF-8") #encoding = "UTF-8" para abrir lendo os acentos, ~, ç e etc.
+```
+
+#### Alteração na variável "Final.de.Semana"
+```{r}
+#Fizemos uma alteração na variavel "Final.de.Semana". 
+#Alteramos "0" por "Nao" e "1" por Sim, mas se não quiser não é necessário.
+cerveja <- consumo_cerveja %>%
+  mutate(Final.de.Semana = ifelse(Final.de.Semana == "0", "Nao", "Sim"))
+```
+
+
+## Remoção de observações com dados faltantes
+```{r}
+#Ao fazer o resumo das variáveis observamos onde tem NA
+summary(cerveja$Temperatura.Media..C.) #tem 1 Na
+summary(cerveja$Temperatura.Minima..C.) #tem 1 Na
+summary(cerveja$Temperatura.Maxima..C.) #tem 1 Na
+summary(cerveja$Precipitacao..mm.) #Não tem 1 Na
+summary(cerveja$Data) #Não tem Na
+summary(cerveja$Consumo.de.cerveja..litros.) #Não tem Na
+table(cerveja$Final.de.Semana) #Não tem Na
+
+#Fitramos "NA" das variaveis que tinham Na para não atrabalhar nossa análise.
+cerveja = cerveja %>% filter(!is.na(Temperatura.Media..C.))
+cerveja = cerveja %>% filter(!is.na(Temperatura.Minima..C.))
+cerveja = cerveja %>% filter(!is.na(Temperatura.Maxima..C.))
+
+#Remoção de 3 observações com "Na" da nossa base de dados.
+```
+
+
+## Descrição dos dados
+```{r}
+#Carregar a biblioteca "kableExtra" para montar esse tipo de tabela.
+#Tabela interativa 
+kbl(cerveja, caption = "Tabela 1: Banco de dados do consumo de cerveja em 2019.") %>% #Dados= cerveja e titulo da tabela escreve em caption = "Titulo.
+  kable_paper(bootstrap_options = "striped", full_width = T)  %>%  #estilo da tabela será paper, por isso utilizamos "kable_paper". "full_width" Vocé coloca "T" se quer que a tabela preencha todo espaço possível ou "F" se quer que ela preencha só o necessário. Utilizamos "T" para dar como exemplo. "bootstrap_options" muda alguns ajustes na tabela, como cor de linhas largura da linha.
+  scroll_box(width = "100%", height = "300px") #ajuste a largura e altura da tabela
+```
+
+O banco de dados utilizado corresponde a uma coleta diária no ano de 2019. Nele possuíamos 7 variáveis e 365 observações. Após a remoção dos três Na's ficamos com 7 variáveis e 362 observações no banco de dados.
+
+As variáveis são:
+
+- **Data:** O dia, mês e ano que foi coletado a informação daquela observação. Nesses dados o período é de 01/01/2019 até 31/12/2019.
+
+- **Temperatura.Media..C.:** Correspondente a temperatura média em °C coletada no dia daquela observação.
+
+- **Temperatura.Minima..C.:** Correspondente a temperatura média em °C coletada no dia daquela observação.
+
+- **Temperatura.Maxima..C.:** Correspondente a temperatura média em °C coletada no dia daquela observação.
+
+- **Precipitacao..mm.:** Correspondente a precipitação de chuva em mm coletada no dia daquela observação.
+
+- **Final.de.Semana:** Representa se aquele dia corresponde a um dia do final de semana ou não. "1" se é final de semana (sábado ou domingo) e "0" se é dia útil da semana(Segunda a Sexta).
+
+- **Consumo.de.cerveja..litros:** Correspondente ao total do consumo de cerveja em litros medido naquele dia.
+
+```{r}
+#Através da função "glimpse" podemos verificar o tipo de cada variável do banco de dados.
+glimpse(cerveja)
+```
+
+## Análise descritiva dos dados
+```{r}
+#Criação do gráfico boxplot da variável "Consumo.de.cerveja..litros."
+cerveja %>% 
+  ggplot(aes(x = "", y = Consumo.de.cerveja..litros.)) + #Em y requer uma variável contínua para montar o boxplot.
+  geom_boxplot(color= "black", fill="blue", alpha = .5) + #"Color" é a cor da borda do gráfico, "fill" é a cor que vai preencher todo o gráfico e "alpha" é uma taxa de transparência da cor colocada no "fill". 
+  labs(title = "Figura 1: Boxplot para o consumo de cerveja (litros) diário, em 2019.", #titulo     
+    subtitle = "", #subtitulo caso necessário
+    x="", #Nome da variável x caso necessário
+    y="consumo de cerveja (L)") #Nome da variável y
+
+
+#Criação da tabela com as medidas descritivas da variável "Consumo.de.cerveja..litros."
+
+resumo <- summary(cerveja$Consumo.de.cerveja..litros.) # resumo recebe o summary da variável "Consumo.de.cerveja..litros."
+
+#Afim de criar uma tabela com o pacole KableExtra, fazemos um "resumo_valores".
+#"resumo_valores" acessa cada coluna de "resumo" e junta os dados de cada coluna através da função "cbind".
+resumo_valores <- cbind(resumo[1],resumo[2],resumo[3],resumo[4],resumo[5],resumo[6])
+
+#Através da função "colnames" renomeamos os nomes das colunas de "resumo_valores".
+colnames(resumo_valores) <- c("Mínimo", "1° quartil",  "Mediana",    "Média", "3° quartil",  "Máximo") 
+
+#Através da função "rownames" renomeamos o nome da linha de "resumo_valores".
+rownames(resumo_valores) <- c("Resumo")
+
+#Utilizamos novamente a função kbl do pacote KableExtra para criar tabelas mais organizadas.
+resumo_valores %>%
+  kbl(caption = "Tabela 2: Medidas descritivas para o Consumo de cerveja (litros) diário, em 2019.") %>% #Dados= cerveja e titulo da tabela escreve em caption = "Titulo".
+  kable_classic(full_width = F, html_font = "Cambria") #estilo da tabela será clássico, por isso utilizamos "kable_classic". "full_width" coloca "T" se quer que a tabela preencha todo espaço possível no relatório ou "F" se quer que ela fique menor. Utilizamos "F" para dar como exemplo. "html_font" coloca o estilo da fonte da letra utilizada.
+```
+
+Observando a figura 1 e a tabela 2, observamos que a disitribuição do consumo de cerveja parece ser bem simétrica, a mediana e média são bem próximas, 24871.5	e 25416.35 respectivamente. Obsevamos também que não existe a presença de outliers na distribuição e que os dados não são tão dispersos (iqr, 6629), eles estão bem concentrados ao redor da média. O consumo máximo e mínimo, no ano de 2019, foi de 37937 e 14343	 litros respectivamente, e as pessoas consumiram em média 25416.35 litros de cerveja durante todo o ano de 2019.
+
+```{r}
+#Criação do gráfico boxplot da variável "Consumo.de.cerveja..litros." segundo a variável "Final.de.Semana".
+cerveja %>% 
+  ggplot(aes(x = Final.de.Semana, y = Consumo.de.cerveja..litros.)) + #y será nossa variável continua e x a discreta. Com isso iremos fazer box plots do "Consumo.de.cerveja..litros." separados para cada nível da variável "Final.de.Semana".
+  geom_boxplot(aes(fill = Final.de.Semana), #"fill = Final.de.Semana" indica que as cores devem estar diferente para cada nível da variável "Final.de.Semana".
+               alpha = 0.8) + #alpha é para adicionar transparência na cor do gráfico
+  labs(title = "Figura 2: Boxplot para o consumo de cerveja (litros) diário \n segundo a variável Final de semana, em 2019.",          
+    subtitle = "",
+    x="",
+    y="consumo de cerveja (L)",
+    fill="Final de Semana") 
+
+#Criação da tabela com as medidas descritivas da variável "Consumo.de.cerveja..litros. segundo a variável "Final.de.Semana".
+
+#Filtrando bases
+Base_Fds_Sim <- cerveja %>% filter(Final.de.Semana=="Sim") #Base_Fds_Sim recebe uma nova base de dados com todas as informações dos dias que foram final de semana. 
+Base_Fds_Nao <- cerveja %>% filter(Final.de.Semana=="Nao") #Base_Fds_Nao recebe uma nova base de dados com todas as informações dos dias que não foram final de semana.
+
+summary_Sim <- summary(Base_Fds_Sim$Consumo.de.cerveja..litros.) #summary_Sim recebe o summary da variável "Consumo.de.cerveja..litros." dos dias que foram final de semana.
+summary_Nao <- summary(Base_Fds_Nao$Consumo.de.cerveja..litros.)#summary_Nao recebe o summary da variável "Consumo.de.cerveja..litros." dos dias que não foram final de semana.
+
+
+#Afim de criar uma tabela com o pacole KableExtra, fazemos um "resumo_valores_Sim" e "resumo_valores_Nao."
+#"resumo_valores_Sim" e "resumo_valores_Nao" vão acessar cada coluna "i" de "summary_Sim" e "summary_Nao" através de "summary_Sim[i]" e "summary_Nao[i]". Depois vamos juntar os dados de cada coluna através da função "cbind".
+resumo_valores_Sim <- cbind(summary_Sim[1],summary_Sim[2],summary_Sim[3],summary_Sim[4],summary_Sim[5],summary_Sim[6])
+resumo_valores_Nao <- cbind(summary_Nao[1],summary_Nao[2],summary_Nao[3],summary_Nao[4],summary_Nao[5],summary_Nao[6])
+
+#"resumo_Sim_Nao" será uma tabela com "resumo_valores_Sim" na primeira linha e "resumo_valores_Nao" na segunda linha.
+#rbind junta "resumo_valores_Sim" e "resumo_valores_Nao" por linha.
+resumo_Sim_Nao <- rbind(resumo_valores_Sim, resumo_valores_Nao)
+
+#Através da função "colnames" renomeamos os nomes das colunas de "resumo_Sim_Nao".
+colnames(resumo_Sim_Nao) <- c("Mínimo", "1° quartil",  "Mediana",    "Média", "3° quartil",  "Máximo") 
+
+#Através da função "rownames" renomeamos os nomes das linhas de "resumo_Sim_Nao".
+rownames(resumo_Sim_Nao) <- c("Sim", "Nao")
+
+#Tabela
+resumo_Sim_Nao %>%
+  kbl(caption = "Tabela 3: Medidas descritivas para o Consumo de cerveja (litros) diário, segundo a variável final de semana, em 2019.") %>%
+  kable_classic(full_width = T, html_font = "Cambria") #Em "full_width" agora utilizei "T" para dar como exemplo.
+```
+
+Observando a figura 2 e a tabela 3, observamos que as disitribuições do consumo de cerveja segundo o final de semana parece ter uma simetria. A mediana e média são bem próximas dentro de ambos os grupos. Porém, observamos que quando é final de semana a distribuição tem uma leve assimetria a esquerda, o que nos indica que a medianá é maior que a média (mediana e média, 29482.5	28922.72) ou seja, parece que as pessoas tendem a consumir mais quando é final de semana. 
+
+É notório que a distribuição do consumo de cerveja quando não é final de semana possue valores menores do que quando é final de semana. Isso se deve ao fato de que, durante o final de semana as pessoas saem mais para beber, já que provavelmente elas estão de folga. 
+Obsevamos também a presença de dois outliers na distribuição dos dados correspondente a quando não é final de semana. Talvez isso tenha sido algum dia de comemoração na cidade, ou de algum jogo de futebol, ou até algum feriado em que as pessoas saíram para beber mais durante os dias úteis da semana. 
+
+Acerca da disperção, observe que as distribuições não possuem uma grande disperção. Temos que 50% dos dados estão entre 26045.0	e 31833.75 quando é final de semana, e quando não é final de semana 50% dos dados estão entre 21292.5	e 26382.25. Também podemos observar isso nos boxplots, as caixinhas não são tão dispersas. 
+
+O consumo máximo e mínimo, no ano de 2019, durante o final de semana foi de 37937 e 20738	 litros respectivamente, e as pessoas consumiram em média 28922.72 litros de cerveja no final de semana durante o ano de 2019. Já para os dias que não são final de semana, o consumo máximo e mínimo no ano de 2019 foi de 35861 e 14343	litros de cerveja respectivamente, e as pessoas consumiram em média 24002.93 litros de cerveja durante dias úteis na semana no ano de 2019.
+
+
+```{r}
+#Para utitizar a função ggcorr() para montar matriz de correlação, carregar o pacote GGally, library(GGally). 
+ggcorr(cerveja, label=T)  + #label=T para aparecer o valor numérico da correlação.
+  labs(title = "Figura 3: Matriz de correlação.")
+
+```
+
+Através da matriz de correlação acima observamos que as variáveis mais correlacionadas com o consumo de cerveja é a temperatura máxima e média, ambas com 0.6 de correlação positiva. Ou seja, o consumo de cerveja tende a aumentar quando as temperaturas máxima e média aumentam. 
+
+Já em relação ao consumo e precipitação, elas possuem uma correlação bem fraca e negativa, de -0.2, poderiamos dizer que se a precipitação de chuva aumenta o consumo de cerveja diminiu. Porém, como temos uma correlação muito fraca, não podemos afirmar isso. 
+
+Acerca das temperaturas, a temperatura média e máxima possuem uma forte correlação positiva de 0.9, a temperatura média e mínima possuem uma forte correlação positiva de 0.8 e a temperatura máxima e mínima possuem uma correlação positiva de 0.7. Com essa informação já podemos concluir que ao escolher as variáveis para montar o nosso modelo de regressão, não iremos utilizar as três temperaturas para não ocorrer problema de multicolinearidade. Então, concluímos que a variável escolhida será a temperatura média, já que ela possui a melhor correlação tanto com a temperatura mínima como com a temperatura máxima e também com a variável consumo.
+
+```{r}
+ggplot(cerveja, na.rm = T, aes(x=Consumo.de.cerveja..litros., y= Temperatura.Media..C.))+ #dados= cerveja, na.rm=T serve para omitir possíveis Na's, "as.Date(Data)" transforma nossa variavel "Data" para o formato "Date". y colocamos a a primeira variável que escolhemos.
+  geom_point(aes(col="Temperatura Média (°C)")) + #"col" é o nome da variavel que você colocou em "y".
+  #Depois que adicionar a primeira variável, é só ir adicionando as outras que você quer da seguinte forma.
+  geom_point(aes(y=Temperatura.Minima..C., col= "Temperatura Minima (°C)")) +
+  geom_point(aes(y=Temperatura.Maxima..C., col= "Temperatura Máxima (°C)")) +
+  theme_cleveland()+ #Carregar biblioteca "ggpubr" para utilizar theme_cleveland
+  #Nome no gráfico
+  labs(title = "Figura 4: Gráfico de dispersão para as variáveis Consumo de \n cerveja(L) e Temperatura do ar (°C), segundo o nível de \n temperatura.", #subtitulo
+       x="Consumo de cerveja(L)", #Nome da variável x
+       y="Temperatura do ar (°C)", #Nome da variável y
+       color="Níveis de temperatura") #Nome dos níveis
+```
+
+Como visto na figura 3, as temperaturas máxima e média possuem correlação positiva de 0.6 com a variável consumo, enuqanto a temperatura mínima possue uma correlação de 0.4 com a variável consumo. 
+
+Podemos observar na figura 4 acima a relação entre essas temperaturas e a variável consumo de cerveja. Observe que para as três variáveis de temperaturas, a medida que o consumo de cerveja aumenta, as temperaturas também aumentam, o que era esperado já que vimos correlaçoes positivas na matriz de correlação. Também indentificamos a presença de um ponto discrepante que pertence a temperatura média.
+
+```{r}
+ggplot(cerveja, na.rm = T, aes(x=Consumo.de.cerveja..litros., y= Temperatura.Media..C.))+ #dados= cerveja, na.rm=T serve para omitir possíveis Na's, "as.Date(Data)" transforma nossa variavel "Data" para o formato "Date". y colocamos a a primeira variável que escolhemos.
+  geom_point(aes(col="Temperatura Média (°C)")) + #"col" é o nome da variavel que você colocou em "y".
+  #Depois que adicionar a primeira variável, é só ir adicionando as outras que você quer da seguinte forma.
+  geom_point(aes(y=Temperatura.Minima..C., col= "Temperatura Minima (°C)")) +
+  geom_point(aes(y=Temperatura.Maxima..C., col= "Temperatura Máxima (°C)")) +
+  theme_pubclean()+ ##Carregar biblioteca "ggpubr" para utilizar theme_pubclean
+  #Nome no gráfico
+  labs(title = "Figura 5: Gráfico de dispersão para as variáveis Consumo de \n cerveja(L) e Temperatura do ar (°C), segundo o nível de \n temperatura e final de semana.", #subtitulo
+       subtitle = "| 'Sim', é final de semana | 'Nao', não é final de semana |",
+       x="Consumo de cerveja(L)", #Nome da variável x
+       y="Temperatura do ar (°C)", #Nome da variável y
+       color="Níveis de temperatura") +
+    facet_wrap(~ Final.de.Semana, ncol = 2) # facet_wrap() Quebra o gráfico de dispersão que montei acima nos níveis da variável "Final.de.Semana." "ncol=2" para que esses gráficos sejam apresentados em duas colunas.
+```
+
+Na figura 5, podemos visualizar o diagrama de disperssão dividido para os dias que são finais de semana e quando não são finais de semana. Tanto para dias que são finais de semana como para dias que não são, observamos um mesmo comportamento das temperaturas em relação ao consumo. Porém podemos identificar que durante os dias que são finais de semana o consumo tende a ser maior. Além disso, identificamos que o ponto discrepante encontrado foi ocorreu em algum dia no final de semana.
+
+```{r}
+#Criação de gráfico de linhas para três variáveis diferentes. Primeiro você escolhe uma das três que você quer. Escolhi a temperatura média.
+ggplot(cerveja, na.rm = T, aes(x=as.Date(Data), y= Temperatura.Media..C.))+ #dados= cerveja, na.rm=T serve para omitir possíveis Na's, "as.Date(Data)" transforma nossa variavel "Data" para o formato "Date". y colocamos a a primeira variável que escolhemos.
+  geom_line(aes(col="Temperatura Média (°C)")) + #"col" é o nome da variavel que você colocou em "y".
+  #Depois que adicionar a primeira variável, é só ir adicionando as outras que você quer da seguinte forma.
+  geom_line(aes(y=Temperatura.Minima..C., col= "Temperatura Minima (°C)")) +
+   geom_line(aes(y=Temperatura.Maxima..C., col= "Temperatura Máxima (°C)")) +
+  theme_dark()+ #tema do fundo do nosso gráfico. Escolhi o "dark" para dar como exemplo.
+  #Nome no gráfico
+  labs(title = "Figura 6: Níveis da temperatura diária(°C), em 2019.",       
+    subtitle = "Níveis de temperatura: mínima, média e máxima.", #subtitulo
+    x="Dia do Ano", #Nome da variável x
+    y="Temperatura do ar (°C)", #Nome da variável y
+    color="Níveis de temperatura") #Nome dos níveis
+
+```
+
+Através da figura 6 podemos observar a distribuição das temperaturas mínimas, média e máxima ao longo de todo o ano de 2019. Observe que na temperatura média há um pico que provavelmente deve corresponder a algum erro de digitação. Por que se fosse verdade, teoricamente nesse dia as temperaturas mínimas e máximas também deveriam estar com algum pico. Essa observação provavelmente será detectada como outlier durante a análise de diagnóstico do nosso modelo de regressão e no gráfico boxplot.
+
+```{r}
+#Seguimos o mesmo processo visto anteriormente de construção de tabelas.
+summary_Min <-summary(cerveja$Temperatura.Minima..C.)
+summary_Med <-summary(cerveja$Temperatura.Media..C.)
+summary_Max <-summary(cerveja$Temperatura.Maxima..C.)
+
+resumo_Min <- cbind(summary_Min[1],summary_Min[2],summary_Min[3],summary_Min[4],summary_Min[5],summary_Min[6])
+resumo_Med <- cbind(summary_Med[1],summary_Med[2],summary_Med[3],summary_Med[4],summary_Med[5],summary_Med[6])
+resumo_Max <- cbind(summary_Max[1],summary_Max[2],summary_Max[3],summary_Max[4],summary_Max[5],summary_Max[6])
+
+resumo_Niveis_temp <- rbind(resumo_Min, resumo_Med, resumo_Max)
+
+#Através da função "colnames" renomeamos os nomes das colunas.
+colnames(resumo_Niveis_temp) <- c("Mínimo", "1° quartil",  "Mediana",    "Média", "3° quartil",  "Máximo") 
+
+#Através da função "rownames" renomeamos os nomes das linhas.
+rownames(resumo_Niveis_temp) <- c("Mínima", "Média", "Máxima")
+
+resumo_Niveis_temp %>%
+  kbl(caption = "Tabela 4: Medidas descritivas para temperatura diária(°C) segundo o nível da temperatura, em 2019.") %>%
+  kable_classic(full_width = F, html_font = "Cambria") 
+```
+
+Através da medidas descritivas na tabela 4 podemos identificar que aquele pico visto no gráfico anterior corresponde a temperatura média de 52,86°C. A temperatura máxima, desconsiderando o suposto outlier, foi de 36,50°C enquanto a mínima foi de 10.6. A temperatura média mínima anual no ano de 2019 foi de 17,47°₢ já a temperatura média foi de 21.30°C e a temperatura média máxima foi de 26,62°C.
+
+```{r}
+#Criação gráfico das temperaturas
+#Vertor geral com o nome dos níveis da temperatura. 
+temp_nome <- c(rep("Mínima", 362), rep("Média", 362), rep("Máxima", 362)) #criei um vetor repetindo o nome dos níveis 362 vezes para cada nível. Pois 362 é o tamanho do meus dados.
+
+#Vertor geral com a teperatura de cada nível. 
+temp <- c(cerveja$Temperatura.Minima..C.,cerveja$Temperatura.Media..C.,cerveja$Temperatura.Maxima..C.) #Esse vetor recebe todas as temperaturas, primeiro da variável "Temperatura.Minima..C.", depois da "Temperatura.Media..C." e depois da "Temperatura.Maxima..C.". Temos que colocar na mesma ordem de criação do vetor "temp_nome". 
+
+#Juntamos o vetor com o nome, "temp_nome", dos níveis da temperatura e o vetor com os valores das temperaturas, "temp", através da função cbind.
+data <- cbind(temp_nome,temp)
+
+#E criamos um data frame.
+data <- as.data.frame(data)
+
+#Tabela través da funçao klb()
+kbl(data, caption = "Tabela 5: Banco de dados com as temperaturas diárias e seus níveis.") %>%  kable_styling(bootstrap_options = "striped", full_width = F)  %>%  #Utilizamos o estilo da tabela "kable_styling"
+  scroll_box(width = "100%", height = "300px")
+```
+
+Acima observe um novo data frame criado para a partir dele construir o box plot para as temperturas.
+
+```{r}
+#Realizamos as alterações seguintes para posteriormente conseguir construir os boxplots
+#as.numeric(data$temp) transforma "temp" em numérico
+data$temp <- as.numeric(data$temp)
+#as.numeric(data$temp_nome) transforma "temp_nome" em fator
+data$temp_nome <- as.factor(data$temp_nome)
+
+#Criação do gráfico boxplot da variável "temp" segundo a variável "temp_nome".
+#Seguimos o mesmo processo visto anteriormente de construção de box plots.
+data %>% 
+  ggplot(aes(x=temp_nome, y=temp, fill=temp_nome))+
+  geom_boxplot(alpha = 0.8) + #alpha é para adicionar transparencia na cor do gráfico
+  labs(title = "Figura 7: Boxplot da temperatura diária(°C) segundo o nível da temperatura.",       
+    subtitle = "Níveis de temperatura: mínima, média e máxima", #subtitulo
+    x="",
+    y="Temperatura(°C) Diário",
+    fill="Níveis de temperatura")
+```
+
+Observamos nos boxplots da figura 7 que, como esperado, a distribuição da temperatura mínima possui valores menores, enquanto a da temperatura média possui valores maiores que a distribuição da temperatura mínima e menores que da temperatura máxima. E que a temperatura máxima é a que possui uma distribuição com valores mais altos. 
+
+Na temperatura média, observamos a presença de um outlier, como já haviamos comentado acima nos comentários da figura 6 e tabela 4. Na distribuição da temperatura máxima também temos um outlier com um valor abaixo dos limites esperados. Pela tabela 4 podemos concluir que essa temperatura corresponde ao valor mínimo da distribuição da temperatura máxima, temperatura igual a 14,5°C.
+
+```{r}
+#Histograma da precipitação, seguimos o mesmo processo para criação dos gráficos anteriores. Porém aquei utilizamos "geom_histogram" já que queremos um histograma. 
+ggplot(data = cerveja) + 
+  geom_histogram(mapping = aes(x = Precipitacao..mm. ), color= "black", fill="orange", alpha = .5, position = "dodge", bins = 50) + #position = "dodge" preserva a posição vertical do gráfico e "bins" é a guantidade de intervalos do histograma
+  labs(
+    title = "Figura 8: Histograma da variável Precipitação (mm), em 2019.",
+    subtitle = "",
+    x="Precipitação (mm)",
+    y="Frequencia")
+
+#Criação da tabela com as medidas descritivas da variável "Consumo.de.cerveja..litros."
+
+resumo <- summary(cerveja$Precipitacao..mm.) # resumo recebe o summary da variável "Precipitacao..mm."
+
+#Afim de criar uma tabela com o pacole KableExtra, fazemos um "resumo_valores".
+#"resumo_valores" acessa cada coluna de "resumo" e junta os dados de cada coluna através da função "cbind".
+resumo_valores <- cbind(resumo[1],resumo[2],resumo[3],resumo[4],resumo[5],resumo[6])
+
+#Através da função "colnames" renomeamos os nomes das colunas de "resumo_valores".
+colnames(resumo_valores) <- c("Mínimo", "1° quartil",  "Mediana",    "Média", "3° quartil",  "Máximo") 
+
+#Através da função "rownames" renomeamos o nome da linha de "resumo_valores".
+rownames(resumo_valores) <- c("Resumo")
+
+#Utilizamos novamente a função kbl do pacote KableExtra para criar tabelas mais organizadas.
+resumo_valores %>%
+  kbl(caption = "Tabela 6: Medidas descritivas para a Precipitação (mm) diária, em 2019.") %>% #Dados= cerveja e titulo da tabela escreve em caption = "Titulo".
+  kable_classic(full_width = F, html_font = "Cambria") #estilo da tabela será clássico, por isso utilizamos "kable_classic". "full_width" coloca "T" se quer que a tabela preencha todo espaço possível no relatório ou "F" se quer que ela fique menor. Utilizamos "F" para dar como exemplo. "html_font" coloca o estilo da fonte da letra utilizada.
+```
+
+A partir da figura 8 observamos que há muitos registros de precipitação próxima
+ de zero. Ou seja, no local onde foi feito esses registros parece não chover muito. Através da tabela 6 observamos que 50% das precipitações anuais são iguais a 0mm. Ou seja, em relação a todos os dias do ano de 2019, metade deles não choveram. Vemos também que a precipitação anual foi em média de 5.143094mm e a precipitação máxima foi de 94.8mm no ano de 2019.
+ 
+
+
+## Teste-t para duas amostras independentes
+
+Nosso objetivo ao realizar o teste t é verificar se a média do consumo de cerveja durante o final de semana é igual a média do Consumo de cerveja durante dias úteis da semana. Porém antes de aplicar o teste t, precisamos verificar o pressuposto de normalidade dos dados e além disso, verificar se as variâncias dos grupos são iguais ou diferentes. Com essas informações, vamos conseguir aplicar o teste da forma correta.
+
+```{r}
+ggplot(data = cerveja) + 
+  geom_histogram(mapping = aes(x = Consumo.de.cerveja..litros., fill = Final.de.Semana ), position = "dodge", bins = 50) + #position = "dodge" preserva a posição vertical do gráfico e "bins" é a guantidade de intervalos do histograma
+  facet_wrap(~ Final.de.Semana, nrow = 2) + # facet_wrap() Eu quebro o histograma que montei acima nos níveis da variável "Final.de.Semana." "nrow=2" para que esses gráficos sejam apresentados em duas linhas.
+  
+  labs(
+    title = "Figura 9: Histograma da variável Consumo de cerveja (litros), \n segundo a variável Final de Semana, em 2019",
+    subtitle = "",
+    x="Consumo de cerveja (litros)",
+    y="Frequencia",
+    fill="Final de Semana")
+```
+
+Observando os histogramas da figura 9, do consumo das variáveis divido pelos grupos da variável "Final.de.Semana", observamos que parece ter uma distribuição normal. Mas para verificar com mais precisão, aplicaremos um teste. 
+
+##### Checando pressuposto de normalidade
+```{r}
+#Para utilizar a função byf.shapiro() carregamos o pacote "RVAideMemoire", library(RVAideMemoire).
+ 
+#Transformamos "Final.de.Semana" para fator.
+cerveja$Final.de.Semana <- as.factor(cerveja$Final.de.Semana)
+
+#Teste de shapiro por final de semana para o Consumo de cerveja.
+byf.shapiro(Consumo.de.cerveja..litros. ~ Final.de.Semana, data=cerveja)
+# A função byf.shapiro() nos diz que eu tenho um teste de normalidade de Shapiro-Wilk, que o dado incluido foi o "Consumo.de.cerveja..litros." e que ele está dividido pelos níveis da variável "Final.de.Semana." 
+# Ele nos retorna dois p-valores de shapiro. Um para cada nível da variável "Final.de.Semana.".
+```
+
+O teste shapiro tem como hipótese nula que a distribuição dos dados é normal e hipótese alternativa que a distribuição é diferente da normal. 
+Observamos que para ambos os níveis (Nao e Sim) da variável "Final.de.Semana." o valor de `p>0.05`, então não rejeitamos a hipótese nula, logo os grupos possuem distribuição normal. Então o pressuposto de normalidade para o teste t foi atendido.
+
+#### Teste de homogeneidade baseado na média
+```{r}
+#Para utilizar a função leveneTest() carregamos o pacote "car", library(car).
+
+#Teste de levene por final de semana para o Consumo de cerveja.
+#Utilizamos center=mean para realizar um teste baseado na média. (optativo)
+leveneTest(Consumo.de.cerveja..litros. ~ Final.de.Semana, data=cerveja, center=mean)
+```
+
+O teste de levene tem como hipótese nula que as variâncias dos grupos são homogêneas e como hipótese alternativa que as variâncias dos grupos não são homogêneas.
+Como `p>0.05` então não rejeitamos a hipótese nula e consideramos que as variâncias são homogêneas.
+
+#### Teste t para duas amostras independentes
+
+O teste t vai verificar se a média do Consumo de cerveja durante o final de semana é igual a média do Consumo de cerveja durante dias úteis da semana. Utilizamos `var.equal=TRUE` já que o teste de levene deu que as variâncias dos grupos são iguais.
+
+```{r}
+t.test(Consumo.de.cerveja..litros. ~ Final.de.Semana, data=cerveja, var.equal=TRUE)
+```
+
+Observamos que `p-valor<0,05` então existe diferença da média do consumo de cerveja durante o final de semana e os dias úteis de segunda a sexta.
+
+```{r}
+#Criação de tabela
+tab <- cerveja %>% 
+  group_by(Final.de.Semana) %>% #Agrupamos por fim de semana
+  get_summary_stats(Consumo.de.cerveja..litros., type = "mean_sd") #Pedimos o resumo através da função da variável "Consumo.de.cerveja..litros." através da função get_summary_stats(). type = "mean_sd" pois queremos o resumo da média e desvio padrão.
+
+tab <- tab[-2] #Retiramos a segunda coluna referente ao nome da variável Consumo.de.cerveja..litros. só para deixar a tabela com uma estética melhor. 
+
+#Criação da tabela como já vimos anteriormente
+tab %>%
+  kbl(caption = "Tabela 7: Número, média e desvio padrão do Consumo de cerveja (litros), segundo o final de semana, em 2019.") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+O teste-t para duas amostras independentes mostrou que a média do consumo de cerveja durante o final de semana é diferente da média do consumo de cerveja durante os dias úteis na semana (`p<0,001`). Através da tabela 7 podemos descrever que a média do consumo de cerveja durante o fim de semana (28922.72	e 3830.191, média e desvio padrão) foi superior a média do consumo de cerveja durante os dias úteis na semana (24002.93	e 3804.711, média e desvio padrão). Observe os boxplots da figura 2.
+
+
+## Regressão linear múltipla
+
+Iremos criar um modelo de regressão linear múltiplo com algumas variáveis explicativas dos nossos dados e com o objetivo de explicar a variável dependente "Consumo.de.cerveja..litros.". Para o nosso modelo ser válido, é necessário checar alguns pressupostos, são eles, a linearidade, a normalidade, homocedasticidade, autocorrelação e multicolinearidade. Antes de validar o modelo final, iremos checar cada pressuposto desse através de gráficos e testes.
+
+```{r}
+#Pacotes necessários
+pacman::p_load(dplyr, car, rstatix, lmtest, ggpubr,
+               QuantPsyc, psych, scatterplot3d)
+```
+
+
+### Construção dos modelos:
+
+#### Proposta primeiro modelo
+Iremos utilizar as variáveis "Temperatura.Media..C." e "Final.de.Semana" como variáveis independentes explicativas e "Consumo.de.cerveja..litros." como variável dependente, resposta. Optamos por escolher essas variáveis para explicar o consumo, pois como vimos na matriz de correlação anteriormente, a variável Precipitacao..mm. não tinha uma boa correlação com "Consumo.de.cerveja..litros.."(-0.2). Já para as temperaturas, as três eram muito correlacionadas entre si, então se fosse colocado as iria causar problema de multicolinearidade no modelo. Por isso optamos por escolher a "Temperatura.Media..C." já que ela é a que mais se correlaciona com "Consumo.de.cerveja..litros."(0.6) e com as duas outras temperaturas que tinhamos. Ou seja, a temperatura média vai representar bem tanto a temperatura mínima como a máxima. Por isso não é necessário colocar as três.
+
+```{r}
+#Proposta primeiro modelo 
+mod1 <- lm(Consumo.de.cerveja..litros. ~  Temperatura.Media..C.  + Final.de.Semana, data=cerveja)
+#mod1 recebe o modelo de regressão ajustado através da função lm().
+#Consumo.de.cerveja..litros. é a variável dependente e Temperatura.Media..C. e Final.de.Semana são as variáveis independentes.
+#data=cerveja pois devemos informar qual o banco de dados utilizado para a função lm().
+
+summary(mod1) #resumo do modelo
+```
+
+- Abaixo do `Pr(>|t|)` está os p-valores do teste t de significância das variáveis do nosso modelo. Temos como hipótese nula que o coeficiente estimado dessa variável é estatisticamente igual a zero e como hipótese alternativa que o coeficiente é estatisticamente diferente de zero. 
+
+- O R-squared ajustado significa o quanto nosso modelo explica a variação dos dados. Para o modelo 1 foi de  0.5821, ainda não está muito bom.
+
+- O teste F nos indica se faz sentido usar o modelo criado ou não. Ele tem como hipótese nula que o modelo criado é igual a um modelo nulo, só com intercepto, e hipótese alternativa que é difrente desse modelo nulo. Então só faz sentido utilizar o modelo criado, caso esse teste dê significativo (`p-valor<0,01`), o modelo 1 foi significativo.
+
+##### Análise de diagnóstico do modelo 1
+```{r}
+par(mfrow=c(2,2))
+plot(mod1)
+```
+
+Os gráficos acima nos dão muitas informações sobre o modelo. Segue uma explicação para cada gráfico.
+
+- Gráfico 1, Residuals vs Fitted: Gráfico dos resíduos versus valores ajustados, nesse gráfico verificamos os pressupostos da linearidade. Se houver a linearidada a linha vermelha deve estar aproximadamente horizontal. Para esse modelo 1, a suposição de linearidade foi violada.
+
+- Gráfico 2, Normal Q-Q: Gráfico dos resíduos studentizados versus residuos teóricos. Nesse gráfico verificamos os pressupostos da normalidade. Caso a distribuição seja normal ela deve estar com os pontos sobre a linha. Para esse modelo 1, a suposição de normalidade dos residuos **parece** ser atendida, verificaremos melhor posteriomente com testes.
+
+- Gráfico 3, Scale-Location: Gráfico resíduos studentizados pelos valores ajustados. Nesse gráfico verificamos os pressupostos de homocedasticidade. Se houver homocedasticidade esses pontos devem estar próximos a um padrão mais ou menos retangular, parecendo que estão aleatoriamente distribuidos.  Para esse modelo 1, a  suposição de homocedasticidade foi violada, uma vez que  os dados estão bem concentrados só em uma parte do gráfico.
+
+- Gráfico 4, Residuals vs Leverage: Gráfico resíduos studentizados versus leverage. Nesse gráfico verificamos a presença de outliers. Caso exista outliers eles devem estar fora da linha pontilhada vermelha. Para esse modelo 1, há presença de outlier identificada na observação 17. Outra coisa é que esperamos que esses resíduos estajam mais ou menos entre -3 e 3, para o nosso modelo isso não está sendo satisfeito justamente por conta dessa observação 17.
+
+```{r}
+#Para utilizar a função ols_plot_resid_lev() carregamos o pacote "olsrr", library(olsrr).
+ols_plot_resid_lev(mod1)
+```
+
+Através do gráfico acima também podemos observar alguns pontos outliers, influentes de alavancagem. Esse gráfico é bem intuitivo. E como era de se esperar ele também expõe a observção 17 como outlier.
+Portanto, vamos retirar o outliers da observação 17 dos nossos dados e propor um segundo modelo, 
+
+
+##### Excluindo outlier
+```{r}
+#Essa observação 17 é justamente aquela que apareceu como um pico na figura 6 e um outlier no boxplot da figura 7.
+
+#Salvamos os dados sem a observação 17 em um novo arquivo "cerveja_out".
+cerveja_out <- cerveja[-17,]
+```
+
+####  Proposta segundo modelo (sem a observação 17).
+```{r}
+mod2 <- lm(Consumo.de.cerveja..litros. ~  Temperatura.Media..C.  + Final.de.Semana, cerveja_out)
+```
+
+##### Análise de diagnóstico do modelo 2
+```{r}
+par(mfrow=c(2,2))
+plot(mod2)
+ols_plot_resid_lev(mod2)
+```
+
+Observe que melhorou bastante. A suposição de linearidade parece ser atendida pelo gráfico 1, Residuals vs Fitted. Através do gráfico 2 a suposição de normalidade dos resíduos parece ser atendida. No gráfico 3, Scale-Location, os pontos estão mais ou menos próximos a um padrão retângular, parecendo que estão aleatoriamente distribuidos. O pressuposto de homocedasticidade parece estar sendo atendido. Vamos verificar posteriomente através de testes.
+
+Para esse modelo 2, há presença de um outlier identificada na observação 357 nos gráficos acima e como a observação 356 no segundo gráfico. Mas como esse outlier não é tão discrepante, vamos verificar se nosso modelo mesmo com esse outliers é violado em algo quando realizamos os testes.
+
+Observação: A observação 356, não sei por que nos primeiros gráficos para o modelo 2 ela está sendo chamanda de 357. Mas pelas análises ela é a 356. Pois se olharmos o gráfico de outliers para o modelo 1, ela era a observação 357, mas ao remover a observação 17 ela deveria passar a ser a observação 356 assim como observamos no segundo gráfico da função ols_plot_resid_lev() .
+
+```{r}
+## Teste para verificar normalidade dos resíduos: `p>0.05` diz que o pressuposto de normalidade foi atendido.
+shapiro.test(mod2$residuals)
+```
+
+Como `p=0.06481` então o pressuposto de normalidade foi atendido.
+
+```{r}
+## Outliers nos resíduos: sai do limite -3 e 3
+summary(rstandard(mod2))
+```
+
+Os limites dos residuos studentizados estão ultrapassando um pouco do -3, por conta disso está tendo uma pequena violação do pressuposto. Mas como não está sendo tão discrepante, não vamos retirar essa observação dos dados e vamos prosseguir com a análise.
+
+```{r}
+##Checando homocedasticidade (Breusch-Pagan): As hipóteses são que H0: há homocedasticidade p>0.5 e H1: não há homocedasticidade `p<0.05`
+#Para esse teste ser válido a distribuição precisa ser normal.
+bptest(mod2)
+```
+
+Como `p=0.0009983` então o pressuposto de haver homocedasticidade não foi atendido. Iremos propor um terceiro modelo fazendo uma transformação na variável resposta. Consumo vai passar a ser a sua raiz quadrada.
+
+
+#### Proposta terceiro modelo (Alteração na variável resposta)
+
+Iremos fazer uma transformação na variável consumo. Criamos uma nova variavel, a "sqrt_consumo", corresponde a raiz quadrada do consumo.
+
+```{r}
+cerveja_out$sqrt_consumo <- sqrt(cerveja_out$Consumo.de.cerveja..litros.) #armazena sqrt_consumo na base de dados cerveja_out. "sqrt_consumo" é a raiz quadrada do consumo.
+mod3 <- lm(sqrt_consumo ~  Temperatura.Media..C.  + Final.de.Semana, data=cerveja_out)
+#Agora a variável dependente vai passar a ser sqrt_consumo ao invés de Consumo.de.cerveja..litros..
+```
+
+##### Análise de diagnóstico do modelo 3
+```{r}
+par(mfrow=c(2,2))
+plot(mod3)
+ols_plot_resid_lev(mod3)
+```
+
+Pelos mesmos motivos dos modelos anteriores, através dos gráficos parece que o modelo 3 está com os pressupostos atendidos. A única coisa que observamos é a presença de um outliers na observação 356. Mas como mencionei, ela não é tão discrepante então não vamos retirar e verificar depois se isso vai ser um problema.
+
+
+
+```{r}
+## Teste para verificar normalidade dos resíduos: `p>0.05` diz que o pressuposto de normalidade foi atendido.
+shapiro.test(mod3$residuals)
+```
+Como `p=0.07814` então o pressuposto de normalidade foi atendido.
+
+```{r}
+## Outliers nos resíduos: sai do limite -3 e 3
+summary(rstandard(mod3))
+```
+Os limites dos residuos studentizados estão ultrapassando um pouco do -3, por conta disso está tendo uma pequena violação do pressuposto. Mas como não está sendo tao discrepante, não vamos retirar essa observação dos dados e vamos prosseguir com a análise.
+
+```{r}
+## Homocedasticidade (Breusch-Pagan): As hipóteses são que H0: há homocedasticidade p>0.5 e H1: não há homocedasticidade `p<0.05`
+#Para esse teste ser válido a distribuição precisa ser normal.
+bptest(mod3)
+```
+
+Como `p=0.05087` então o pressuposto de haver homocedasticidade agora foi atendido.
+
+```{r}
+## Independência dos resíduos (Durbin-Watson):
+#Para esse teste ser válido a distribuição precisa ser normal.
+durbinWatsonTest(mod3)
+```
+
+Há algumas formas de análise para considerar quando não há autocorreção, uma delas é quando a estatística de Durbin-Watson está entre 1 e 3. Logo, como o valor da nossa estatística  foi `1.764954`, então podemos considerar que há independência dos resíduos.
+
+```{r}
+#Outra forma de checar indepêndencia dos resíduos é através do gráfico de autocorrelação, mais usado em séries temporais.
+acf(mod3$residuals) 
+```
+
+Por definição, no 0 o primeiro lag é igual a 1. Consideramos que não há autocorrelação dos residuos quando a partir do lag 2  todos deveriam estar entre ou próximo do tracejado. No lag 3 e 5 há uma leve saida do tracejado, mas nada muito grande, eles ainda estão próximos do tracejado. Com isso, consideramos que não há autocorrelação dos residuos no modelo 3.
+
+
+```{r}
+## Ausência de Multicolinearidade: Há multicolinearidade se VIF > 10
+vif(mod3)
+```
+
+Os VIF para as duas variáveis foram bem abaixo de 10, portando não existe multicolinearidade no nosso modelo. Isso já era esperado já que só colocamos variáveis não correlacionadas no nosso modelo.
+
+#### Conclusão sobre o modelo final.
+```{r}
+summary(mod3)
+```
+
+- O R-squared ajustado Significa o quanto o modelo 3 explica a variação dos dados. Para o modelo 3 obtemos um R-squared ajustado de 0.6091, lembre que no primeiro modelo (mod1) foi de 0.5821. Com os ajustes feitos, conseguimos uma pequena melhora. Com isso, temos que 60,91% da variação dos dados está sendo explicada pelo modelo 3.
+
+- Como p-valor do teste F do modelo 3 é menor que 0.01 então temos que o modelo 3 é melhor que o modelo nulo, ou seja, é significativo.
+
+- Observamos que os p-valores do teste t são todos significativos, portanto, podemos tirar algumas conclusões. O valor do intercepto seria o valor do consumo em litros, quando todas as variáveis independentes são 0. Seria um dia que não é final de semana e que a temperatura média registrada foi de 0°C. Mas acho que isso não faz muito sentido para o nosso caso. Para "Temperatura.Media..C." o coeficiente foi 2.6343, e como o p-valor foi de `p<0,001` então ele é estatisticamente diferente de zero. Ou seja, a temperatura média impacta no consumo de cerveja. Assim, podemos concluir que a cada 1°C a mais da temperatura média o consumo de cerveja aumenta em média 2.6343 Litros. Para "Final.de.SemanaSim" o coeficiente foi 16.2116, e como o p-valor foi de `p<0,001` então ele é estatisticamente diferente de zero. Ou seja, ser final de semana impacta no consumo de cerveja. Assim, podemos concluir que se é final de semana o consumo de cerveja aumenta em média em 16.2116 Litros. 
+
+```{r, include=FALSE}
+###TERMINAR
+#### Regressão logistica
+cerveja$Final.de.Semana <- as.factor(cerveja$Final.de.Semana)
+
+cerveja$Final.de.Semana <- relevel(cerveja$Final.de.Semana, ref = "Sim")
+
+levels(cerveja$Final.de.Semana)
+
+mod <- glm(Final.de.Semana ~ Consumo.de.cerveja..litros., family = binomial(link = 'logit'), data = cerveja)
+
+summary(mod)
+
+exp(mod$coefficients[-1])
+
+# A razão de chances do consumo de cerveja deu 0.9996477. Então a cada litro a mais no Consumo de cerveja, as pessoas possuem o aluno possui 1.99 vezes a chance de não ficar retido no curso.
+
+```
+
+
+### Razão de chances
+
+Aqui vamos criar dois tipos de variáveis dicotômicas a partir davariável "Consumo.de.cerveja..litros." e "Precipitacao..mm.", afim de calcular razão de chances.
+
+#### Razão de chances utilizando a nova variável correspondente a média do consumo anual de cerveja
+
+```{r}
+#Criamos uma nova variável chamada "MediaConsumo" que recebe "Menor" caso o valor do consumo de cerveja naquele dia tenha sido menor que a média do consumo no ano de 2019, e recebe "Maior" caso o valor do consumo de cerveja naquele dia tenha sido maior que a média do consumo no ano de 2019.
+
+cerveja <- cerveja %>%
+  mutate(MediaConsumo = ifelse(Consumo.de.cerveja..litros. >  mean(cerveja$Consumo.de.cerveja..litros.), "Maior", "Menor")) #Utilizamos mutate para criação dessa nova variável a partir de condições com "ifelse" e com a variável "Consumo.de.cerveja..litros.".
+
+#Transformamos as variáveis para fator.
+cerveja$Final.de.Semana <- as.factor(cerveja$Final.de.Semana)
+cerveja$MediaConsumo <- as.factor(cerveja$MediaConsumo)
+
+#Categorias das variáveis 
+levels(cerveja$Final.de.Semana)
+levels(cerveja$MediaConsumo)
+
+#É importante organizar a categoria da variável de acordo com a análise que você quer fazer.
+
+#Queremos que a variável "Final.de.Semana" tenha a sua categoria de referência "Sim" e "MediaConsumo" tenha a sua categoria de referência "Maior". Caso as categorias não estivessem do jeito que você quer, você poderia utilizar as funções abaixo para ajeitar a categoria de referência.
+
+#Transformamos a categoria da variável "Final.de.Semana" para "Sim"
+cerveja$Final.de.Semana <- relevel(cerveja$Final.de.Semana, ref = "Sim")
+#Transformamos a categoria da variável "MediaConsumo" para "Maior" 
+cerveja$MediaConsumo <- relevel(cerveja$MediaConsumo, ref = "Maior")
+
+
+#Como queremos comparar se o consumo foi maior que a média dependendo se foi final de semana ou não, então temos que fazer essa transformação anterior na categoria dos dados e montar a tabela da seguinte forma. "Final.de.Semana" para ficar nas linhas e "MediaConsumo" nas colunas. Com essa alteração temos certeza que nossa análise estará correta.
+odds_Fds <- table(cerveja$Final.de.Semana, cerveja$MediaConsumo)
+
+
+odds_Fds %>%
+  kbl(caption = "Tabela 8: Distribuição da variável Final.de.Semana com respeito a variável MediaConsumo.") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+
+```
+
+```{r}
+#Teste Qui_quadrado de associação(chisq.test()): H0: Não há associação  entre as variáveis e H1: Há associação  entre as variáveis.
+chisq.test(odds_Fds)
+```
+
+Aplicamos o teste qui-quadrado na tabela 8 "odds_Fds" para ver se existe associação entre a variável "Final.de.Semana" e "MediaConsumo". Como o teste Qui_quadrado nos retornou um `p-valor<0,05` então concluimos que há associação entre as variáveis. Vamos agora avaliar essa associação calculando a razão de chances através do teste de Fisher.
+
+```{r}
+fisher.test(odds_Fds)
+```
+
+Aqui temos a saida do teste de fisher, que deu significativo, como esperávamos, já que o teste Qui-quadrado também teve `p-valor<0.05`. Mas para apresentar as informações de uma melhor forma, iremos criar uma tabela para melhor visualização.
+
+```{r}
+test <- fisher.test(odds_Fds) #armazenamos o teste de fisher no objeto "test".
+Odds <- test$estimate #armazenamos a estimativa(odds ratio) do test no objeto Odds.
+Linf <- test$conf.int[1] #armazenamos o limite inferior do intervalo de confiança da estimativa no objeto Linf.
+Lsup <- test$conf.int[2] #armazenamos o limite superior do intervalo de confiança da estimativa no objeto Lsup.
+pvalor <- test$p.value #armazenamos p-valor do test no objeto pvalor.
+
+
+#Juntamos todos os objetos criados através da função cbind que já é conhecida pois já usamos anteriormente.
+tab <- cbind(Odds, Linf, Lsup, pvalor)
+
+#Transformamos tab em data.frame
+tab <- as.data.frame(tab)
+
+#Uma opção quando o pvalor é muito pequeno, seria utilizar essa função abaixo onde ele vai te reportar o p-valor sendo igual a "<0.01" ou "<0.05".
+tab$pvalor <- ifelse(
+  pvalor < 0.01, "<0.01", ifelse(
+    pvalor < 0.05, "<0.05"))
+#Como o p-valor no teste de fisher anterior foi de "6.368e-15" essa função vai retornar pvalor="<0.01" na tabela.
+```
+
+```{r}
+tab %>%
+  kbl(align = "c", escape = F, caption = "Tabela 9: Razão de chances, limite inferior e superior e p-valor do teste de fisher para as  variáveis Final.de.Semana e MediaConsumo em 2019.") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+Através do teste Chi-quadrado de Pearson, observou-se uma relação entre o consumo ser maior que a média e ser ou não final de semana (`p-valor<0,01`). Através do teste de Fisher calculamos a razão de chances e descobrimos que, durante o fim de semana existe 7.123876 (IC: 4.105759	; 12.74711) vezes chances do consumo de cerveja ser maior que a média do consumo anual do que durante a dias que não são final de semana. Ou seja, existem 612,38% mais chance do consumo durante o final de semana ser maior que a média do consumo anual do que durante a dias que não são final de semana.
+
+
+#### Razão de chances utilizando a variável correspondente a média do consumo anual de cerveja e a nova variável correspondente a média da precipitação anual.
+```{r}
+#Criamos uma nova variável chamada "Choveu" que recebe "Choveu_mais" caso a precipitação de chuva naquele dia tenha sido maior que a média de precipitação durante todo o ano de 2019, e recebe "Choveu_menos" caso a precipitação de chuva naquele dia tenha sido menor que a média de precipitação durante todo o ano de 2019.
+
+cerveja <- cerveja %>%
+  mutate(Choveu = ifelse(Precipitacao..mm. > mean(cerveja$Precipitacao..mm.), "Choveu_mais", "Choveu_menos"))
+
+#Transformando para fator
+cerveja$MediaConsumo <- as.factor(cerveja$MediaConsumo)
+cerveja$Choveu <- as.factor(cerveja$Choveu)
+
+#Categorias das variáveis
+levels(cerveja$MediaConsumo)
+levels(cerveja$Choveu)
+
+#É importante organizar a categoria da variável de acordo com a análise que você quer fazer.
+#Transformamos a categoria da variável "MediaConsumo" para "Maior" 
+cerveja$MediaConsumo <- relevel(cerveja$MediaConsumo, ref = "Maior")
+#Transformamos a categoria da variável "Choveu" para "Choveu_mais" 
+cerveja$Choveu <- relevel(cerveja$Choveu, ref = "Choveu_mais")
+
+
+#Como queremos comparar se o consumo foi maior que a média dependendo se naquele dia correspondente choveu mais que a média de precipitação anual ou não, então temos que fazer essa transformação anterior na categoria dos dados e montar a tabela da seguinte forma. "Choveu" para ficar nas linhas e "MediaConsumo" nas colunas. Com essa alteração temos certeza que nossa análise estará correta.
+odds_Ch <- table(cerveja$Choveu, cerveja$MediaConsumo)
+odds_Ch %>%
+  kbl(caption = "Tabela 10: Distribuição da variável Choveu com respeito a variável MediaConsumo.") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+
+```
+
+```{r}
+#Teste Qui_quadrado de associação(chisq.test()): H0: Não há associação(pvalor>0.05)  entre as variáveis e H1: Há associação  entre as variáveis.(p-valor<0.05)
+chisq.test(odds_Ch)
+```
+
+Aplicamos o teste qui-quadrado na tabela 10 "odds_Ch" para ver se existe associação entre a variável "Choveu" e "MediaConsumo". Como o teste Qui_quadrado nos retornou um p-valor significativo, `p-valor=0.02065`, então concluimos que há associação entre as variáveis. Vamos agora avaliar essa associação calculando a razão de chances através do teste de Fisher.
+
+```{r}
+fisher.test(odds_Ch)
+```
+
+Aqui temos a saida do teste de fisher, que deu significativo, como esperávamos, já que o teste Qui-quadrado também teve um p-valor significativo, `p-valor<0.05`. Mas para apresentar as informações de uma melhor forma, iremos criar uma tabela.
+
+```{r}
+#Iremos seguir o mesmo caminho visto anteriormente para montar a tabela.
+
+#Teste de fisher
+test <- fisher.test(odds_Ch)
+Odds <- test$estimate
+Linf <- test$conf.int[1]
+Lsup <- test$conf.int[2]
+pvalor <- test$p.value
+```
+
+```{r}
+pvalor
+pvalor <- round(pvalor,4) #Arredondamos 4 casas decimais do p-valor para não ficar um valor tão extenso.
+```
+
+```{r}
+tab <- cbind(Odds, Linf, Lsup, pvalor)
+tab <- as.data.frame(tab)
+
+#Formatação da tabela, agora iremos utilizar uma função para colorir o p-valor.
+
+#Função para colorir o p-valor caso ele seja menor que 0.05:
+tab$pvalor <- ifelse(
+  tab$pvalor < 0.05, #Se p-valor menor que 0.05
+  cell_spec(tab$pvalor, color = "red", bold = T), #Se o pvalor for menor que 0.05, ele vai ficar vermelho e em negrito na tabela.
+  cell_spec(tab$pvalor, color = "black", italic = T)#Se o pvalor for maior que 0.05, ele vai ficar preto e em italico na tabela.
+  ) 
+
+```
+
+
+```{r}
+tab %>%
+  kbl(align = "c", escape = F, caption = "Tabela 11: Razão de chances, limite inferior e superior e p-valor do teste de fisher para as  variáveis Choveu e MediaConsumo em 2019.") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+Através do teste Chi-quadrado de Pearson, observou-se uma relação entre o consumo de cerveja ser maior que a média de consumo anual e a precipitação te sido ou não maior que a média de precipitação anual.(`p-valor=0.0188`). 
+Através do teste de Fisher calculamos a razão de chances e descobrimos que, havendo precipitação acima da média anual em determinado dia, existe 0.5186514 (IC: 0.2906821;0.9073875) vezes chances do consumo de cerveja ser maior que a média anual do que durante os dias em que a precipitação foi abaixo da média anual. Ou seja, em dias que a precipitação de chuva foi acima da média anual, existem 48.13% menos chances do consumo de cerveja ser maior que a média de consumo anual, do que durante os dias em que a precipitação de chuva foi abaixo da média anual. Então parece que, em média, a chance do pessoal consumir cerveja em dias que não estão muito chuvosos é maior.
+
+
+#### Razão de chances utilizando a variável correspondente a média do consumo anual de cerveja e a variável correspondente a média da precipitação anual e somente para os dias que são final de semana.
+
+```{r}
+#Filtramos para os dias que são final de semana e salvamos em "aux"
+aux <- cerveja %>%  filter(Final.de.Semana=="Sim")
+
+odds_Ch <- table(aux$Choveu, aux$MediaConsumo)
+odds_Ch
+
+#Teste Qui_quadrado de associação(chisq.test()): H0: Não há associação(pvalor>0.05)  entre as variáveis e H1: Há associação  entre as variáveis.(`p-valor<0.05`)
+chisq.test(odds_Ch)
+```
+Aplicamos o teste qui-quadrado na tabela “odds_Ch” para ver se existe associação entre a variável “Choveu” e “MediaConsumo” durante os finais de semana. Como o teste Qui_quadrado nos retornou um p-valor não significativo, `p-valor=0.1695`, então concluimos que não há associação entre as variáveis. Logo, calcular e interpretar a razão de chances para esse caso não faz sentido. Mas será que faz sentido para os dias que não são finais de semana? Vamos verificar.
+
+#### Razão de chances utilizando a variável correspondente a média do consumo anual de cerveja e a variável correspondente a média da precipitação anual e somente para os dias que não são final de semana.
+```{r}
+#Filtramos para os dias que não são final de semana e salvamos em "aux"
+aux <- cerveja %>%  filter(Final.de.Semana=="Nao")
+
+#Só para conferir:
+#Categorias das variáveis
+levels(cerveja$MediaConsumo)
+levels(cerveja$Choveu)
+odds_Ch <- table(aux$Choveu, aux$MediaConsumo)
+odds_Ch %>%
+  kbl(caption = "Tabela 12: Distribuição da variável Choveu com respeito a variável MediaConsumo durante os dias que não são final de semana.") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+#Teste Qui_quadrado de associação(chisq.test()): H0: Não há associação(pvalor>0.05)  entre as variáveis e H1: Há associação  entre as variáveis.(`p-valor<0.05`)
+chisq.test(odds_Ch)
+```
+
+Aplicamos o teste qui-quadrado na tabela 12 “odds_Ch” para ver se existe associação entre a variável “Choveu” e “MediaConsumo” para os dias que não são final de semana. Como o teste Qui_quadrado nos retornou um p-valor significativo, `p-valor=0.02854` então concluimos que há associação entre as variáveis. Vamos agora avaliar essa associação calculando a razão de chances através do teste de Fisher.
+
+```{r}
+fisher.test(odds_Ch)
+```
+
+Aqui temos a saida do teste de fisher, que deu significativo, como esperávamos, já que o teste Qui-quadrado também teve um p-valor significativo, `p-valor<0.05`. Mas para apresentar as informações de uma melhor forma, iremos criar uma tabela.
+
+```{r}
+#Iremos seguir o mesmo caminho visto anteriormente para montar a tabela.
+
+#Teste de fisher
+test <- fisher.test(odds_Ch)
+Odds <- test$estimate
+Linf <- test$conf.int[1]
+Lsup <- test$conf.int[2]
+pvalor <- test$p.value
+```
+
+```{r}
+pvalor
+pvalor <- round(pvalor,4) #Arredondamos 4 casas decimais do p-valor para não ficar um valor tão extenso.
+```
+
+```{r}
+tab <- cbind(Odds, Linf, Lsup, pvalor)
+tab <- as.data.frame(tab)
+
+#Formatação da tabela, agora iremos utilizar uma função para colorir o p-valor.
+
+#Função para colorir o p-valor caso ele seja menor que 0.05:
+tab$pvalor <- ifelse(
+  tab$pvalor < 0.05, #Se p-valor menor que 0.05
+  cell_spec(tab$pvalor, color = "red", bold = T), #Se o pvalor for menor que 0.05, ele vai ficar vermelho e em negrito na tabela.
+  cell_spec(tab$pvalor, color = "black", italic = T)#Se o pvalor for maior que 0.05, ele vai ficar preto e em italico na tabela.
+  ) 
+
+```
+
+
+```{r}
+tab %>%
+  kbl(align = "c", escape = F, caption = "Tabela 13: Razão de chances, limite inferior e superior e p-valor do teste de fisher para as  variáveis Choveu e MediaConsumo e os dias que não são finais de semana em 2019") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+Através do teste Chi-quadrado de Pearson, observou-se uma relação entre o consumo de cerveja ser maior que a média de consumo anual e a precipitação te sido ou não maior que a média de precipitação anual, durante os dias que não são finais de semana.(`p-valor=0.0206`). 
+Através do teste de Fisher calculamos a razão de chances e descobrimos que,durantes os dias que não são finais de semana, havendo precipitação acima da média anual em determinado dia, existe 0.4171671 (IC:0.1761774 ;	0.9066252) chances do consumo de cerveja ser maior que a média anual do que durante os dias úteis da semana em que a precipitação foi abaixo da média anual. Ou seja, em dias úteis da semana em que a precipitação de chuva foi acima da média anual, existem 58.28% menos chances do consumo de cerveja ser maior que a média de consumo anual, do que durante os dias úteis da semana em que a precipitação de chuva abaixo da média anual. Então parece que, em média, durante os dias úteis da semana, a chance do pessoal consumir cerveja em dias que não estão muito chuvosos é maior.
+
